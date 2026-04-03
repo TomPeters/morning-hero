@@ -12,9 +12,12 @@ A web app for Hannah and Zoe to complete their morning routine before school. Ki
 |---|---|---|
 | Framework | Next.js 15 (App Router) + TypeScript | API routes + SSR in one project; no separate backend |
 | Styling | Tailwind CSS | Fast to iterate; great for large touch targets |
-| Data | Vercel KV (Redis) | No DB to manage; date-keyed keys handle daily reset naturally |
+| Data | PostgreSQL on `tjphomepg.postgres.database.azure.com` | Shared server already in shire; separate DBs for prod/test |
 | AI reward | Replicate API (image generation) | Simple REST API, pay-per-image, keys stay server-side |
-| Hosting | Vercel free tier | One-command deploy from git push; env var management built in |
+| Hosting | AKS shire cluster (`prod` namespace) | Consistent with all other personal projects |
+| Container Registry | `tjpcontainerregistry.azurecr.io/morning-hero` | Shared ACR already in shire |
+| Secrets | Azure Key Vault (`tjp-home-vault`) via ExternalSecret | Standard shire secret management pattern |
+| CI/CD | GitHub Actions → ArgoCD GitOps | Same `main.yml` / `promote.yml` pattern as uv-api and obi-wan |
 
 ---
 
@@ -33,22 +36,47 @@ A web app for Hannah and Zoe to complete their morning routine before school. Ki
 
 ```
 POST /api/complete                → Mark a job complete; returns updated state
-POST /api/reward/generate         → Trigger AI image generation; saves URL to KV
+POST /api/reward/generate         → Trigger AI image generation; saves URL to DB
 GET  /api/state/[childId]         → Today's daily state for a child
 POST /api/admin/save-jobs         → Save job list (requires admin token)
 ```
 
 ---
 
-## Data Model (Vercel KV)
+## Data Model (PostgreSQL)
 
-```
-profile:{childId}             → { name, avatarEmoji, favouriteThings[], jobs[] }
-daily:{childId}:{YYYY-MM-DD}  → { completedJobIds[], allComplete, rewardImageUrl }
-streak:{childId}              → { current, longest, lastCompleteDate }
+Database names: `morning-hero-prod` (prod), `morning-hero-test` (test) on `tjphomepg.postgres.database.azure.com`.
+
+```sql
+-- Static per-child config
+CREATE TABLE profiles (
+  child_id       TEXT PRIMARY KEY,
+  name           TEXT NOT NULL,
+  avatar_emoji   TEXT NOT NULL,
+  favourite_things TEXT[] NOT NULL DEFAULT '{}',
+  jobs           JSONB NOT NULL DEFAULT '[]'  -- ordered array of {id, label}
+);
+
+-- One row per child per day
+CREATE TABLE daily_state (
+  child_id           TEXT NOT NULL,
+  date               DATE NOT NULL,
+  completed_job_ids  TEXT[] NOT NULL DEFAULT '{}',
+  all_complete       BOOLEAN NOT NULL DEFAULT FALSE,
+  reward_image_url   TEXT,
+  PRIMARY KEY (child_id, date)
+);
+
+-- Streak tracking
+CREATE TABLE streaks (
+  child_id           TEXT PRIMARY KEY,
+  current            INT NOT NULL DEFAULT 0,
+  longest            INT NOT NULL DEFAULT 0,
+  last_complete_date DATE
+);
 ```
 
-**Daily reset**: State is keyed by date. No cron needed — a new key is initialised automatically on first page load of each day. Old keys expire via KV TTL (30 days).
+**Daily reset**: State is keyed by `(child_id, date)`. A new row is inserted (or fetched) on first page load of each day. Old rows can be purged on a schedule or left indefinitely — the table stays small.
 
 ---
 
@@ -81,11 +109,34 @@ A random favourite is picked each day so the drawing is always a surprise.
 
 1. Child ticks off all 9 jobs → "All done!" screen with confetti
 2. Button to reveal today's drawing
-3. Server picks a random favourite thing, calls Replicate, stores URL in KV
+3. Server picks a random favourite thing, calls Replicate, stores URL in DB
 4. Animated "magic is happening..." loading screen while generating (~10s)
 5. Drawing fades in with celebratory display
 
 The reward is framed as a "morning gift" rather than a score or payment — the habit is the goal, the drawing is a bonus.
+
+---
+
+## Authentication
+
+### Kids — per-child password
+Each child has their own password. Clicking a profile tile on the home screen shows a password entry form. On success, a short-lived signed `HttpOnly` cookie is set for that child (`child_session:<childId>`). All `/[childId]` routes (checklist, reward) check for a valid session server-side and redirect to the password form if absent — preventing one child from accessing the other's checklist or reward.
+
+Passwords are stored in Key Vault (`morning-hero-hannah-password`, `morning-hero-zoe-password`) and injected as env vars via ExternalSecret. They're set/changed by a parent via the admin area.
+
+### Admin — 4-digit PIN
+The `/admin` layout renders a PIN entry form. On submit it calls a server action that compares the PIN against the Key Vault value (`morning-hero-admin-pin`). On success, a short-lived signed `HttpOnly` cookie is set (`admin_session`). The layout checks for it on every request and redirects to the PIN form if absent.
+
+### Session cookies
+Both session types are signed with a shared secret (`morning-hero-session-secret` in Key Vault) using `iron-session` or equivalent. Cookies are `HttpOnly; Secure; SameSite=Strict`. No OAuth, JWTs, or user table needed.
+
+### Key Vault secrets (additions)
+| Key Vault key | Used for |
+|---|---|
+| `morning-hero-hannah-password` | Hannah's login password |
+| `morning-hero-zoe-password` | Zoe's login password |
+| `morning-hero-admin-pin` | 4-digit parent admin PIN |
+| `morning-hero-session-secret` | Cookie signing secret (shared across child + admin sessions) |
 
 ---
 
@@ -97,18 +148,21 @@ The reward is framed as a "morning gift" rather than a score or payment — the 
 - Checklist with the 9 default jobs; tap to complete with visual feedback
 - Progress indicator ("X of 9 done")
 - "All done!" screen with emoji confetti (static, no AI yet)
-- Daily reset via date-keyed `localStorage` (no KV needed for MVP)
-- Deploy to Vercel
+- Daily reset via date-keyed `localStorage` (no DB needed for MVP)
+- Write `Dockerfile` and confirm image builds
+- Deploy to shire test environment
 
 ### Phase 2 — AI drawing reward
-- Set up Vercel KV; migrate state from `localStorage`
+- Set up `morning-hero-test` and `morning-hero-prod` databases on `tjphomepg`
+- Migrate state from `localStorage` to PostgreSQL
 - `/api/reward/generate` route with Replicate API
 - Animated reward reveal screen (loading state + image fade-in)
 - Cache generated image URL so re-visiting the reward page doesn't re-generate
+- Store Replicate API key in Key Vault; inject via ExternalSecret
 
 ### Phase 3 — Streaks + parent admin
 - Streak tracking (flame icon + count)
-- Parent admin area (4-digit PIN gate)
+- Parent admin area (4-digit PIN gate; PIN stored in Key Vault)
 - Job list editor per child (add / remove / reorder)
 - Profile editor (name, avatar emoji, favourite things list)
 
@@ -116,6 +170,55 @@ The reward is framed as a "morning gift" rather than a score or payment — the 
 - AI-generated story continuation via Claude API
 - One new episode (~150 words) per completed day
 - Builds a running adventure story personalised to each child
+
+---
+
+## Deployment (Shire Pattern)
+
+### URLs
+- Prod: `https://morning-hero.tjpeters.net`
+- Test: `https://morning-hero-test.tjpeters.net`
+
+### Dockerfile
+Standard multi-stage Next.js build (Node base image). The app runs as a standalone Next.js server on port 3000.
+
+### k8s manifest layout (Kustomize)
+```
+k8s/
+  base/
+    kustomization.yaml
+    deployment.yaml      # image: tjpcontainerregistry.azurecr.io/morning-hero
+    service.yaml
+  overlays/
+    prod/
+      kustomization.yaml  # pins image tag, sets DB name env var
+      ingress.yaml        # morning-hero.tjpeters.net, letsencrypt-prod issuer
+      secrets.yaml        # ExternalSecret for DB password, Replicate key
+    test/
+      kustomization.yaml
+      ingress.yaml        # morning-hero-test.tjpeters.net, letsencrypt-test issuer
+      secrets.yaml        # ExternalSecret for DB password, Replicate key
+```
+
+### Secrets in Key Vault (`tjp-home-vault`)
+| Key Vault key | Used for |
+|---|---|
+| `morning-hero-db-password` | PostgreSQL password for `tjphomepg` |
+| `morning-hero-replicate-api-key` | Replicate image generation API |
+| `morning-hero-hannah-password` | Hannah's login password |
+| `morning-hero-zoe-password` | Zoe's login password |
+| `morning-hero-admin-pin` | 4-digit parent admin PIN |
+| `morning-hero-session-secret` | Cookie signing secret |
+
+### CI/CD (GitHub Actions)
+Same pattern as `uv-api`:
+- **`main.yml`**: build image → push to ACR with version tag → update test overlay image tag → ArgoCD auto-syncs test
+- **`promote.yml`**: manually triggered with a version string → updates prod overlay image tag → ArgoCD auto-syncs prod
+
+### ArgoCD registration
+Register two apps manually at `https://argocd.tjpeters.net`:
+- `morning-hero` — source: `k8s/overlays/prod`, destination namespace: `prod`
+- `morning-hero-test` — source: `k8s/overlays/test`, destination namespace: `test`
 
 ---
 
@@ -146,11 +249,30 @@ morning-hero/
 │       ├── state/[childId]/route.ts
 │       └── admin/save-jobs/route.ts
 ├── lib/
-│   ├── kv.ts                           # Typed Vercel KV wrappers
+│   ├── db.ts                           # PostgreSQL client + typed query helpers
 │   ├── date.ts                         # Date helpers (today's key, streak logic)
 │   ├── ai.ts                           # Replicate image generation
 │   ├── profiles.ts                     # Default config for Hannah and Zoe
 │   └── types.ts                        # Shared TypeScript types
+├── k8s/
+│   ├── base/
+│   │   ├── kustomization.yaml
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   └── overlays/
+│       ├── prod/
+│       │   ├── kustomization.yaml
+│       │   ├── ingress.yaml
+│       │   └── secrets.yaml            # ExternalSecret CRDs
+│       └── test/
+│           ├── kustomization.yaml
+│           ├── ingress.yaml
+│           └── secrets.yaml
+├── .github/
+│   └── workflows/
+│       ├── main.yml                    # Build, push, update test overlay
+│       └── promote.yml                 # Promote version to prod overlay
+├── Dockerfile
 └── public/
     └── avatars/                        # Optional child photos
 ```
