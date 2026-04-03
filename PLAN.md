@@ -131,17 +131,13 @@ Both session types are signed with a shared secret (`morning-hero-session-secret
 ## Build Phases
 
 ### Phase 1 — Working checklist, static reward (MVP)
-- Scaffold Next.js project (`npx create-next-app@latest`)
 - Profile selector home screen (Hannah / Zoe tiles)
 - Checklist with the 9 default jobs; tap to complete with visual feedback
 - Progress indicator ("X of 9 done")
 - "All done!" screen with emoji confetti (static, no AI yet)
 - Daily reset via date-keyed `localStorage` (no DB needed for MVP)
-- Write `Dockerfile` and confirm image builds
-- Deploy to shire test environment
 
 ### Phase 2 — Persistent state
-- Set up `morning-hero-test` and `morning-hero-prod` databases on `tjphomepg`
 - Migrate state from `localStorage` to PostgreSQL
 
 ### Phase 3 — Streaks + parent admin
@@ -187,21 +183,21 @@ k8s/
 ### Secrets in Key Vault (`tjp-home-vault`)
 | Key Vault key | Used for |
 |---|---|
-| `morning-hero-db-password` | PostgreSQL password for `tjphomepg` |
+| `morning-hero-prod-database-url` | Full postgres connection string for prod |
+| `morning-hero-test-database-url` | Full postgres connection string for test |
 | `morning-hero-hannah-password` | Hannah's login password |
 | `morning-hero-zoe-password` | Zoe's login password |
 | `morning-hero-admin-pin` | 4-digit parent admin PIN |
 | `morning-hero-session-secret` | Cookie signing secret |
 
 ### CI/CD (GitHub Actions)
-Same pattern as `uv-api`:
 - **`main.yml`**: build image → push to ACR with version tag → update test overlay image tag → ArgoCD auto-syncs test
-- **`promote.yml`**: manually triggered with a version string → updates prod overlay image tag → ArgoCD auto-syncs prod
+- **`promote.yml`**: manually triggered with a version string → updates prod overlay image tag → ArgoCD syncs prod
 
-### ArgoCD registration
-Register two apps manually at `https://argocd.tjpeters.net`:
-- `morning-hero` — source: `k8s/overlays/prod`, destination namespace: `prod`
-- `morning-hero-test` — source: `k8s/overlays/test`, destination namespace: `test`
+### ArgoCD Apps
+Both registered at `https://argocd.tjpeters.net`:
+- `morning-hero-test` — source: `k8s/overlays/test`, namespace: `test`, automatic sync
+- `morning-hero` — source: `k8s/overlays/prod`, namespace: `prod`, manual sync
 
 ---
 
