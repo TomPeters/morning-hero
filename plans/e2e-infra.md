@@ -72,7 +72,6 @@ Create `.env.local` (git-ignored):
 ```
 DATABASE_URL=postgres://morning-hero:localdev@localhost:5432/morning-hero-dev
 SESSION_SECRET=any-32-char-or-longer-local-dev-secret
-REPLICATE_API_KEY=<your replicate key for local testing>
 HANNAH_PASSWORD=hannah
 ZOE_PASSWORD=zoe
 ADMIN_PIN=1234
@@ -163,7 +162,6 @@ Add the following secrets to `tjp-home-vault`. Use the Azure portal or CLI:
 
 ```bash
 az keyvault secret set --vault-name tjp-home-vault --name morning-hero-db-password     --value "<sixtyfold postgres password>"
-az keyvault secret set --vault-name tjp-home-vault --name morning-hero-replicate-api-key --value "<replicate api key>"
 az keyvault secret set --vault-name tjp-home-vault --name morning-hero-hannah-password  --value "<choose a password>"
 az keyvault secret set --vault-name tjp-home-vault --name morning-hero-zoe-password     --value "<choose a password>"
 az keyvault secret set --vault-name tjp-home-vault --name morning-hero-admin-pin        --value "<4-digit pin>"
@@ -223,11 +221,6 @@ spec:
                 secretKeyRef:
                   name: morning-hero-secrets
                   key: SESSION_SECRET
-            - name: REPLICATE_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: morning-hero-secrets
-                  key: REPLICATE_API_KEY
             - name: HANNAH_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -334,9 +327,6 @@ spec:
     - secretKey: SESSION_SECRET
       remoteRef:
         key: morning-hero-session-secret
-    - secretKey: REPLICATE_API_KEY
-      remoteRef:
-        key: morning-hero-replicate-api-key
     - secretKey: HANNAH_PASSWORD
       remoteRef:
         key: morning-hero-hannah-password
@@ -576,7 +566,7 @@ Add a DNS record for `morning-hero-test.tjpeters.net` and `morning-hero.tjpeters
 - [ ] `docker-compose.yml` + `.env.local` for local dev
 - [ ] `Dockerfile` builds and runs locally
 - [ ] `morning-hero-prod` and `morning-hero-test` databases created on `tjphomepg`
-- [ ] All 6 secrets added to `tjp-home-vault` (including the two full connection string URLs)
+- [ ] All 5 secrets added to `tjp-home-vault` (including the two full connection string URLs)
 - [ ] k8s manifests committed (`k8s/base` + `k8s/overlays/prod` + `k8s/overlays/test`)
 - [ ] GitHub Actions secrets configured in repo settings
 - [ ] `main.yml` and `promote.yml` workflows committed and pushed

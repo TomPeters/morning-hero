@@ -13,7 +13,6 @@ A web app for Hannah and Zoe to complete their morning routine before school. Ki
 | Framework | Next.js 15 (App Router) + TypeScript | API routes + SSR in one project; no separate backend |
 | Styling | Tailwind CSS | Fast to iterate; great for large touch targets |
 | Data | PostgreSQL on `tjphomepg.postgres.database.azure.com` | Shared server already in shire; separate DBs for prod/test |
-| AI reward | Replicate API (image generation) | Simple REST API, pay-per-image, keys stay server-side |
 | Hosting | AKS shire cluster (`prod` namespace) | Consistent with all other personal projects |
 | Container Registry | `tjpcontainerregistry.azurecr.io/morning-hero` | Shared ACR already in shire |
 | Secrets | Azure Key Vault (`tjp-home-vault`) via ExternalSecret | Standard shire secret management pattern |
@@ -36,7 +35,6 @@ A web app for Hannah and Zoe to complete their morning routine before school. Ki
 
 ```
 POST /api/complete                → Mark a job complete; returns updated state
-POST /api/reward/generate         → Trigger AI image generation; saves URL to DB
 GET  /api/state/[childId]         → Today's daily state for a child
 POST /api/admin/save-jobs         → Save job list (requires admin token)
 ```
@@ -63,7 +61,6 @@ CREATE TABLE daily_state (
   date               DATE NOT NULL,
   completed_job_ids  TEXT[] NOT NULL DEFAULT '{}',
   all_complete       BOOLEAN NOT NULL DEFAULT FALSE,
-  reward_image_url   TEXT,
   PRIMARY KEY (child_id, date)
 );
 
@@ -98,22 +95,13 @@ CREATE TABLE streaks (
 
 Unicorns, cats, sloths, Minecraft, K-pop demon hunters
 
-These are used to build the daily image generation prompt, e.g.:
-> "A cheerful children's book illustration of a sloth in a Minecraft world, soft colours, friendly, detailed"
-
-A random favourite is picked each day so the drawing is always a surprise.
-
 ---
 
 ## Reward Flow
 
-1. Child ticks off all 9 jobs → "All done!" screen with confetti
-2. Button to reveal today's drawing
-3. Server picks a random favourite thing, calls Replicate, stores URL in DB
-4. Animated "magic is happening..." loading screen while generating (~10s)
-5. Drawing fades in with celebratory display
+1. Child ticks off all 9 jobs → "All done!" congratulations screen with confetti
 
-The reward is framed as a "morning gift" rather than a score or payment — the habit is the goal, the drawing is a bonus.
+More sophisticated rewards (e.g. AI-generated drawings) may be added later.
 
 ---
 
@@ -152,13 +140,9 @@ Both session types are signed with a shared secret (`morning-hero-session-secret
 - Write `Dockerfile` and confirm image builds
 - Deploy to shire test environment
 
-### Phase 2 — AI drawing reward
+### Phase 2 — Persistent state
 - Set up `morning-hero-test` and `morning-hero-prod` databases on `tjphomepg`
 - Migrate state from `localStorage` to PostgreSQL
-- `/api/reward/generate` route with Replicate API
-- Animated reward reveal screen (loading state + image fade-in)
-- Cache generated image URL so re-visiting the reward page doesn't re-generate
-- Store Replicate API key in Key Vault; inject via ExternalSecret
 
 ### Phase 3 — Streaks + parent admin
 - Streak tracking (flame icon + count)
@@ -204,7 +188,6 @@ k8s/
 | Key Vault key | Used for |
 |---|---|
 | `morning-hero-db-password` | PostgreSQL password for `tjphomepg` |
-| `morning-hero-replicate-api-key` | Replicate image generation API |
 | `morning-hero-hannah-password` | Hannah's login password |
 | `morning-hero-zoe-password` | Zoe's login password |
 | `morning-hero-admin-pin` | 4-digit parent admin PIN |
@@ -245,13 +228,11 @@ morning-hero/
 │   │   └── profile/[childId]/page.tsx
 │   └── api/
 │       ├── complete/route.ts
-│       ├── reward/generate/route.ts
 │       ├── state/[childId]/route.ts
 │       └── admin/save-jobs/route.ts
 ├── lib/
 │   ├── db.ts                           # PostgreSQL client + typed query helpers
 │   ├── date.ts                         # Date helpers (today's key, streak logic)
-│   ├── ai.ts                           # Replicate image generation
 │   ├── profiles.ts                     # Default config for Hannah and Zoe
 │   └── types.ts                        # Shared TypeScript types
 ├── k8s/
