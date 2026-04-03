@@ -349,12 +349,12 @@ spec:
 
 ### `k8s/overlays/test/kustomization.yaml`
 
-Mirror of prod, referencing `letsencrypt-test` and host `morning-hero-test.tjpeters.net`. Image tag is updated here by `main.yml` CI.
+Mirror of prod, referencing `letsencrypt-staging` and host `morning-hero-test.tjpeters.net`. Image tag is updated here by `main.yml` CI.
 
 ### `k8s/overlays/test/ingress.yaml`
 
 Same structure as prod but:
-- `cert-manager.io/issuer: letsencrypt-test`
+- `cert-manager.io/issuer: letsencrypt-staging`
 - host: `morning-hero-test.tjpeters.net`
 - `secretName: morning-hero-test-tls`
 
