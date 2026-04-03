@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: morning-hero
+  annotations:
+    cert-manager.io/issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - morning-hero-test.tjpeters.net
+      secretName: morning-hero-test-tls
+  rules:
+    - host: morning-hero-test.tjpeters.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: morning-hero
+                port:
+                  number: 80

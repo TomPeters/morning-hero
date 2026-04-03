@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: morning-hero
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: morning-hero
+  template:
+    metadata:
+      labels:
+        app: morning-hero
+    spec:
+      containers:
+        - name: morning-hero
+          image: tjpcontainerregistry.azurecr.io/morning-hero
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: morning-hero-secrets
+                  key: DATABASE_URL
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: morning-hero-secrets
+                  key: SESSION_SECRET
+            - name: HANNAH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: morning-hero-secrets
+                  key: HANNAH_PASSWORD
+            - name: ZOE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: morning-hero-secrets
+                  key: ZOE_PASSWORD
+            - name: ADMIN_PIN
+              valueFrom:
+                secretKeyRef:
+                  name: morning-hero-secrets
+                  key: ADMIN_PIN
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
