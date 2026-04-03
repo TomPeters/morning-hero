@@ -1,0 +1,30 @@
+name: Promote to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version tag to promote (e.g. 2025.06.01.42)
+        required: true
+
+env:
+  IMAGE: ${{ secrets.REGISTRY_LOGIN_SERVER }}/morning-hero
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update prod overlay image tag
+        run: |
+          cd k8s/overlays/prod
+          curl -sL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.1/kustomize_v5.4.1_linux_amd64.tar.gz | tar xz
+          ./kustomize edit set image ${{ env.IMAGE }}:${{ inputs.version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add kustomization.yaml
+          git commit -m "chore: promote ${{ inputs.version }} to prod"
+          git push
