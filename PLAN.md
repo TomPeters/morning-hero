@@ -2,7 +2,7 @@
 
 ## Overview
 
-A web app for Hannah and Zoe to complete their morning routine before school. Kids tick off jobs one by one; when all are done they receive an AI-generated drawing as a daily reward.
+A web app for Hannah and Zoe to complete their morning routine before school. Kids tick off jobs one by one; when all are done they receive a small reward.
 
 ---
 
@@ -25,10 +25,10 @@ A web app for Hannah and Zoe to complete their morning routine before school. Ki
 ```
 /                         → Profile selector (Hannah / Zoe)
 /[childId]                → Morning jobs checklist
-/[childId]/reward         → AI drawing reveal (gated — only accessible after all jobs done)
+/[childId]/reward         → Reward revealed (gated — only accessible after all jobs done)
 /admin                    → Parent settings (4-digit PIN protected)
 /admin/jobs/[childId]     → Edit job list
-/admin/profile/[childId]  → Edit name, avatar, favourite things
+/admin/profile/[childId]  → Edit name, avatar, rewards
 ```
 
 ## API Routes
@@ -51,7 +51,6 @@ CREATE TABLE profiles (
   child_id       TEXT PRIMARY KEY,
   name           TEXT NOT NULL,
   avatar_emoji   TEXT NOT NULL,
-  favourite_things TEXT[] NOT NULL DEFAULT '{}',
   jobs           JSONB NOT NULL DEFAULT '[]'  -- ordered array of {id, label}
 );
 
@@ -84,16 +83,11 @@ CREATE TABLE streaks (
 1. Eat breakfast
 2. Go to the toilet
 3. Get dressed
-4. Make bed
-5. Do hair
-6. Brush teeth
-7. Shoes and socks
-8. Put on sunscreen
-9. Pack school bag
-
-### Favourite Things (both kids — shared list to start, diverge in admin)
-
-Unicorns, cats, sloths, Minecraft, K-pop demon hunters
+4. Do hair
+5. Brush teeth
+6. Shoes and socks
+7. Put on sunscreen
+8. Pack school bag
 
 ---
 
@@ -144,7 +138,7 @@ Both session types are signed with a shared secret (`morning-hero-session-secret
 - Streak tracking (flame icon + count)
 - Parent admin area (4-digit PIN gate; PIN stored in Key Vault)
 - Job list editor per child (add / remove / reorder)
-- Profile editor (name, avatar emoji, favourite things list)
+- Profile editor (name, avatar emoji)
 
 ### Phase 4 — Story mode (future)
 - AI-generated story continuation via Claude API
