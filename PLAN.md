@@ -51,6 +51,7 @@ CREATE TABLE profiles (
   child_id       TEXT PRIMARY KEY,
   name           TEXT NOT NULL,
   avatar_emoji   TEXT NOT NULL,
+  password_hash  TEXT NOT NULL,             -- bcrypt hash; updated via admin area
   jobs           JSONB NOT NULL DEFAULT '[]'  -- ordered array of {id, label}
 );
 
@@ -104,7 +105,7 @@ More sophisticated rewards (e.g. AI-generated drawings) may be added later.
 ### Kids — per-child password
 Each child has their own password. Clicking a profile tile on the home screen shows a password entry form. On success, a short-lived signed `HttpOnly` cookie is set for that child (`child_session:<childId>`). All `/[childId]` routes (checklist, reward) check for a valid session server-side and redirect to the password form if absent — preventing one child from accessing the other's checklist or reward.
 
-Passwords are stored in Key Vault (`morning-hero-hannah-password`, `morning-hero-zoe-password`) and injected as env vars via ExternalSecret. They're set/changed by a parent via the admin area.
+Passwords are stored as bcrypt hashes in the `profiles` table. A parent can change a child's password via the admin area, which updates the hash in the database directly. No Key Vault involvement — Key Vault is only used for infrastructure secrets.
 
 ### Admin — 4-digit PIN
 The `/admin` layout renders a PIN entry form. On submit it calls a server action that compares the PIN against the Key Vault value (`morning-hero-admin-pin`). On success, a short-lived signed `HttpOnly` cookie is set (`admin_session`). The layout checks for it on every request and redirects to the PIN form if absent.
@@ -115,8 +116,6 @@ Both session types are signed with a shared secret (`morning-hero-session-secret
 ### Key Vault secrets (additions)
 | Key Vault key | Used for |
 |---|---|
-| `morning-hero-hannah-password` | Hannah's login password |
-| `morning-hero-zoe-password` | Zoe's login password |
 | `morning-hero-admin-pin` | 4-digit parent admin PIN |
 | `morning-hero-session-secret` | Cookie signing secret (shared across child + admin sessions) |
 
@@ -179,8 +178,6 @@ k8s/
 |---|---|
 | `morning-hero-prod-database-url` | Full postgres connection string for prod |
 | `morning-hero-test-database-url` | Full postgres connection string for test |
-| `morning-hero-hannah-password` | Hannah's login password |
-| `morning-hero-zoe-password` | Zoe's login password |
 | `morning-hero-admin-pin` | 4-digit parent admin PIN |
 | `morning-hero-session-secret` | Cookie signing secret |
 
