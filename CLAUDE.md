@@ -23,7 +23,7 @@ docker compose up -d   # start postgres on :5432
 npm run dev            # Next.js on :3000
 ```
 
-`.env.local` (git-ignored) provides `DATABASE_URL`, `SESSION_SECRET`, `HANNAH_PASSWORD`, `ZOE_PASSWORD`, `ADMIN_PIN`.
+`.env.local` (git-ignored) provides `DATABASE_URL`, `SESSION_SECRET`, `ADMIN_PIN`. Child passwords are stored in the database, not in env vars.
 
 ## CI/CD
 
@@ -48,8 +48,6 @@ npm run dev            # Next.js on :3000
 |---|---|
 | `morning-hero-prod-database-url` | Full postgres connection string for prod |
 | `morning-hero-test-database-url` | Full postgres connection string for test |
-| `morning-hero-hannah-password` | Hannah's login password |
-| `morning-hero-zoe-password` | Zoe's login password |
 | `morning-hero-admin-pin` | 4-digit parent admin PIN |
 | `morning-hero-session-secret` | Cookie signing secret |
 

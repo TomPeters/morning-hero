@@ -30,16 +30,6 @@ spec:
                 secretKeyRef:
                   name: morning-hero-secrets
                   key: SESSION_SECRET
-            - name: HANNAH_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: morning-hero-secrets
-                  key: HANNAH_PASSWORD
-            - name: ZOE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: morning-hero-secrets
-                  key: ZOE_PASSWORD
             - name: ADMIN_PIN
               valueFrom:
                 secretKeyRef:

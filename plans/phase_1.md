@@ -25,12 +25,10 @@ npm install --save-dev @types/bcryptjs @types/canvas-confetti
 ```
 DATABASE_URL=postgres://morning-hero:localdev@localhost:5432/morning-hero-dev
 SESSION_SECRET=any-32-char-local-dev-secret-here
-HANNAH_PASSWORD=hannah123
-ZOE_PASSWORD=zoe123
 ADMIN_PIN=1234
 ```
 
-These mirror the Key Vault secrets in deployed environments. `lib/env.ts` reads and validates them at startup.
+These mirror the Key Vault secrets in deployed environments. `lib/env.ts` reads and validates them at startup. Child passwords are stored as bcrypt hashes in the database and managed via the admin area — they are not environment variables.
 
 ---
 
@@ -112,11 +110,9 @@ function require(key: string): string {
 }
 
 export const env = {
-  databaseUrl: require('DATABASE_URL'),
+  databaseUrl:   require('DATABASE_URL'),
   sessionSecret: require('SESSION_SECRET'),
-  hannahPassword: require('HANNAH_PASSWORD'),
-  zoePassword:    require('ZOE_PASSWORD'),
-  adminPin:       require('ADMIN_PIN'),
+  adminPin:      require('ADMIN_PIN'),
 };
 ```
 
@@ -133,8 +129,9 @@ Sets up a single `postgres` client (singleton pattern for Next.js HMR), runs `sc
 2. Call `seedProfiles()`
 
 **`seedProfiles()`**:
-1. Hash passwords for Hannah and Zoe using `bcryptjs.hash(password, 10)` and insert both profiles with `INSERT ... ON CONFLICT DO NOTHING`
-2. No job lists are seeded — the admin creates them via the admin area
+1. Insert Hannah and Zoe's profiles with `INSERT ... ON CONFLICT DO NOTHING`
+2. Passwords are seeded with a bcrypt hash of a hardcoded default (`"morning"`) — the admin must change these via the admin area before the kids use the app
+3. No job lists are seeded — the admin creates them via the admin area
 
 **Query helper functions** (typed, called from API routes and server components):
 
