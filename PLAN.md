@@ -2,7 +2,7 @@
 
 ## Overview
 
-A web app for Hannah and Zoe to complete their morning routine before school. Kids tick off jobs one by one; when all are done they receive a small reward.
+A web app for Hannah and Zoe to complete jobs and routines. Parents can create multiple named job lists (e.g. "Morning School Routine", "Weekend Chores") that are shared across all children. Kids pick which list to complete when they log in; when all jobs on a list are done they receive a small reward.
 
 ---
 
@@ -23,20 +23,25 @@ A web app for Hannah and Zoe to complete their morning routine before school. Ki
 ## Pages
 
 ```
-/                         → Profile selector (Hannah / Zoe)
-/[childId]                → Morning jobs checklist
-/[childId]/reward         → Reward revealed (gated — only accessible after all jobs done)
-/admin                    → Parent settings (4-digit PIN protected)
-/admin/jobs/[childId]     → Edit job list
-/admin/profile/[childId]  → Edit name, avatar, rewards
+/                              → Profile selector (Hannah / Zoe)
+/[childId]                         → Session picker: resume today's in-progress sessions or start a new list
+/[childId]/[listProgressId]        → Jobs checklist for a progress session
+/[childId]/[listProgressId]/reward → Reward revealed (gated — only accessible after all jobs done)
+/admin                         → Parent settings (4-digit PIN protected)
+/admin/lists                   → List manager: create / rename / reorder / delete lists
+/admin/lists/[listId]          → Edit individual list's jobs (add / remove / reorder)
+/admin/profile/[childId]       → Edit name, avatar
 ```
 
 ## API Routes
 
 ```
-POST /api/complete                → Mark a job complete; returns updated state
-GET  /api/state/[childId]         → Today's daily state for a child
-POST /api/admin/save-jobs         → Save job list (requires admin token)
+POST   /api/progress/start                      → Create a new list_progress session (body: { listId }); childId taken from session cookie; returns listProgressId
+POST   /api/complete                            → Mark a job complete (body: { listProgressId, jobId }); server verifies list_progress.child_id matches session cookie
+GET    /api/progress/[listProgressId]           → Current state of a progress session; server verifies list_progress.child_id matches session cookie
+POST   /api/admin/save-jobs                    → Save jobs array for a list (body: { listId, jobs })
+POST   /api/admin/save-list                    → Create or rename a list (body: { listId, name, sortOrder })
+DELETE /api/admin/delete-list                  → Delete a list (body: { listId });
 ```
 
 ---
@@ -51,35 +56,37 @@ CREATE TABLE profiles (
   child_id       TEXT PRIMARY KEY,
   name           TEXT NOT NULL,
   avatar_emoji   TEXT NOT NULL,
-  password_hash  TEXT NOT NULL,             -- bcrypt hash; updated via admin area
-  jobs           JSONB NOT NULL DEFAULT '[]'  -- ordered array of {id, label}
+  password_hash  TEXT NOT NULL   -- bcrypt hash; updated via admin area
 );
 
--- One row per child per day
-CREATE TABLE daily_state (
-  child_id           TEXT NOT NULL,
-  date               DATE NOT NULL,
+-- Named job lists — shared across all children
+CREATE TABLE job_lists (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  sort_order  INT  NOT NULL DEFAULT 0,
+  jobs        JSONB NOT NULL DEFAULT '[]'  -- ordered array of {id, label}
+);
+
+-- Tracks in-progress and completed job list sessions
+-- Each row represents one attempt at a list; multiple rows per child per list per day are allowed
+CREATE TABLE list_progress (
+  id                 TEXT PRIMARY KEY,             -- unique session id; used in URLs
+  child_id           TEXT NOT NULL REFERENCES profiles(child_id),
+  list_id            TEXT NOT NULL REFERENCES job_lists(id),
+  date               DATE NOT NULL,                -- date the session was started
   completed_job_ids  TEXT[] NOT NULL DEFAULT '{}',
-  all_complete       BOOLEAN NOT NULL DEFAULT FALSE,
-  PRIMARY KEY (child_id, date)
+  all_complete       BOOLEAN NOT NULL DEFAULT FALSE
 );
 
--- Streak tracking
-CREATE TABLE streaks (
-  child_id           TEXT PRIMARY KEY,
-  current            INT NOT NULL DEFAULT 0,
-  longest            INT NOT NULL DEFAULT 0,
-  last_complete_date DATE
-);
 ```
 
-**Daily reset**: State is keyed by `(child_id, date)`. A new row is inserted (or fetched) on first page load of each day. Old rows can be purged on a schedule or left indefinitely — the table stays small.
+**Progress tracking**: A row in `list_progress` is created when a child starts a list session. Multiple rows for the same child, list, and date are allowed. In-progress sessions from previous days are not shown to kids — only today's incomplete sessions appear as resumable. Old rows are left indefinitely.
 
 ---
 
-## Default Configuration
+## Example Configuration
 
-### Jobs (both kids — order configurable in admin)
+### Example list: "Morning Routine"
 
 1. Eat breakfast
 2. Go to the toilet
@@ -92,9 +99,27 @@ CREATE TABLE streaks (
 
 ---
 
+## Kid UX Flow
+
+1. Home page shows two profile tiles (Hannah / Zoe)
+2. Click a profile → password entry form
+3. Server validates password against `profiles.password_hash` (bcrypt)
+4. On success → signs HttpOnly cookie `child_session:<childId>`
+5. `/[childId]` renders the session picker with two sections:
+   - **Resume** — today's in-progress `list_progress` rows (`all_complete = FALSE`, `date = today`); hidden if none
+   - **Start a new list** — all available `job_lists`; tapping one calls `POST /api/progress/start`, then redirects to `/[childId]/[listProgressId]`
+6. On the checklist, child taps jobs to mark complete (stored in `list_progress`)
+7. Progress indicator shows "X of N done"
+8. When all jobs done → "All done!" congratulations screen with confetti
+9. `/[childId]/[listProgressId]` and `/[childId]/[listProgressId]/reward` are both server-side gated:
+   - If `list_progress.date ≠ today` → redirect to `/[childId]`
+   - If accessing `/reward` and `all_complete = FALSE` → redirect to `/[childId]/[listProgressId]`
+
+---
+
 ## Reward Flow
 
-1. Child ticks off all 9 jobs → "All done!" congratulations screen with confetti
+Child ticks off all jobs → "All done!" congratulations screen with confetti.
 
 More sophisticated rewards (e.g. AI-generated drawings) may be added later.
 
@@ -103,15 +128,19 @@ More sophisticated rewards (e.g. AI-generated drawings) may be added later.
 ## Authentication
 
 ### Kids — per-child password
-Each child has their own password. Clicking a profile tile on the home screen shows a password entry form. On success, a short-lived signed `HttpOnly` cookie is set for that child (`child_session:<childId>`). All `/[childId]` routes (checklist, reward) check for a valid session server-side and redirect to the password form if absent — preventing one child from accessing the other's checklist or reward.
+Each child has their own password. Clicking a profile tile on the home screen shows a password entry form. On success, a short-lived signed `HttpOnly` cookie is set for that child (`child_session:<childId>`).
 
-Passwords are stored as bcrypt hashes in the `profiles` table. A parent can change a child's password via the admin area, which updates the hash in the database directly. No Key Vault involvement — Key Vault is only used for infrastructure secrets.
+All `/[childId]` routes check server-side that a valid session exists **and** that the session's `childId` matches the URL parameter — preventing one child from accessing another's pages even if they have a valid session.
+
+All child API routes derive `childId` exclusively from the session cookie — never from the request body or URL. Routes that operate on a `listProgressId` verify that `list_progress.child_id` matches the session before proceeding. This means a child with a valid session cannot create or modify progress records belonging to another child.
+
+Passwords are stored as bcrypt hashes in the `profiles` table. A parent can change a child's password via the admin area.
 
 ### Admin — 4-digit PIN
 The `/admin` layout renders a PIN entry form. On submit it calls a server action that compares the PIN against the Key Vault value (`morning-hero-admin-pin`). On success, a short-lived signed `HttpOnly` cookie is set (`admin_session`). The layout checks for it on every request and redirects to the PIN form if absent.
 
 ### Session cookies
-Both session types are signed with a shared secret (`morning-hero-session-secret` in Key Vault) using `iron-session` or equivalent. Cookies are `HttpOnly; Secure; SameSite=Strict`. No OAuth, JWTs, or user table needed.
+Both session types are signed with a shared secret (`morning-hero-session-secret` in Key Vault) using `iron-session`. Cookies are `HttpOnly; Secure; SameSite=Strict`.
 
 ### Key Vault secrets (additions)
 | Key Vault key | Used for |
@@ -125,19 +154,20 @@ Both session types are signed with a shared secret (`morning-hero-session-secret
 
 ### Phase 1 — Working checklist, static reward (MVP)
 - Profile selector home screen (Hannah / Zoe tiles)
-- Checklist with the 9 default jobs; tap to complete with visual feedback
-- Progress indicator ("X of 9 done")
+- Session picker with one default list ("Morning Routine"); tap to start a session
+- Progress indicator ("X of 8 done")
 - "All done!" screen with emoji confetti (static, no AI yet)
 - Daily reset via date-keyed `localStorage` (no DB needed for MVP)
 
 ### Phase 2 — Persistent state
 - Migrate state from `localStorage` to PostgreSQL
 
-### Phase 3 — Streaks + parent admin
-- Streak tracking (flame icon + count)
+### Phase 3 — Parent admin
 - Parent admin area (4-digit PIN gate; PIN stored in Key Vault)
-- Job list editor per child (add / remove / reorder)
+- Global list manager (create / rename / reorder / delete lists shared across all children)
+- Job editor per list (add / remove / reorder jobs)
 - Profile editor (name, avatar emoji)
+- List selector for kids when multiple lists exist
 
 ### Phase 4 — Story mode (future)
 - AI-generated story continuation via Claude API
@@ -166,11 +196,11 @@ k8s/
     prod/
       kustomization.yaml  # pins image tag, sets DB name env var
       ingress.yaml        # morning-hero.tjpeters.net, letsencrypt-prod issuer
-      secrets.yaml        # ExternalSecret for DB password, Replicate key
+      secrets.yaml        # ExternalSecret for DB password
     test/
       kustomization.yaml
       ingress.yaml        # morning-hero-test.tjpeters.net, letsencrypt-test issuer
-      secrets.yaml        # ExternalSecret for DB password, Replicate key
+      secrets.yaml        # ExternalSecret for DB password
 ```
 
 ### Secrets in Key Vault (`tjp-home-vault`)
@@ -198,30 +228,41 @@ Both registered at `https://argocd.tjpeters.net`:
 morning-hero/
 ├── app/
 │   ├── layout.tsx
-│   ├── page.tsx                        # ProfileSelector
+│   ├── page.tsx                              # ProfileSelector
 │   ├── globals.css
 │   ├── [childId]/
-│   │   ├── page.tsx                    # ChecklistPage (server component)
-│   │   ├── ChecklistClient.tsx         # Interactive job list (client component)
-│   │   ├── JobTile.tsx
-│   │   ├── ProgressBar.tsx
-│   │   └── reward/
-│   │       ├── page.tsx                # RewardPage
-│   │       └── RewardReveal.tsx
+│   │   ├── page.tsx                          # SessionPickerPage (server component)
+│   │   ├── SessionPickerClient.tsx           # Resume + start new list UI (client component)
+│   │   └── [listProgressId]/
+│   │       ├── page.tsx                      # ChecklistPage (server component)
+│   │       ├── ChecklistClient.tsx           # Interactive job list (client component)
+│   │       ├── JobTile.tsx
+│   │       ├── ProgressBar.tsx
+│   │       └── reward/
+│   │           ├── page.tsx                  # RewardPage
+│   │           └── RewardReveal.tsx
 │   ├── admin/
-│   │   ├── layout.tsx                  # PIN gate wrapper
+│   │   ├── layout.tsx                        # PIN gate wrapper
 │   │   ├── page.tsx
-│   │   ├── jobs/[childId]/page.tsx
+│   │   ├── lists/
+│   │   │   ├── page.tsx                      # ListManagerPage (global)
+│   │   │   └── [listId]/
+│   │   │       └── page.tsx                  # JobEditorPage
 │   │   └── profile/[childId]/page.tsx
 │   └── api/
-│       ├── complete/route.ts
-│       ├── state/[childId]/route.ts
-│       └── admin/save-jobs/route.ts
+│       ├── progress/
+│       │   ├── start/route.ts                # body: { childId, listId } → creates session
+│       │   └── [listProgressId]/route.ts     # GET: current session state
+│       ├── complete/route.ts                 # body: { listProgressId, jobId }
+│       └── admin/
+│           ├── save-jobs/route.ts            # body: { listId, jobs }
+│           ├── save-list/route.ts            # body: { listId, name, sortOrder }
+│           └── delete-list/route.ts          # body: { listId }
 ├── lib/
-│   ├── db.ts                           # PostgreSQL client + typed query helpers
-│   ├── date.ts                         # Date helpers (today's key, streak logic)
-│   ├── profiles.ts                     # Default config for Hannah and Zoe
-│   └── types.ts                        # Shared TypeScript types
+│   ├── db.ts                                 # PostgreSQL client + typed query helpers
+│   ├── date.ts                               # Date helpers (today's key, streak logic)
+│   ├── profiles.ts                           # Default config for Hannah and Zoe
+│   └── types.ts                              # Shared TypeScript types
 ├── k8s/
 │   ├── base/
 │   │   ├── kustomization.yaml
@@ -231,16 +272,16 @@ morning-hero/
 │       ├── prod/
 │       │   ├── kustomization.yaml
 │       │   ├── ingress.yaml
-│       │   └── secrets.yaml            # ExternalSecret CRDs
+│       │   └── secrets.yaml
 │       └── test/
 │           ├── kustomization.yaml
 │           ├── ingress.yaml
 │           └── secrets.yaml
 ├── .github/
 │   └── workflows/
-│       ├── main.yml                    # Build, push, update test overlay
-│       └── promote.yml                 # Promote version to prod overlay
+│       ├── main.yml
+│       └── promote.yml
 ├── Dockerfile
 └── public/
-    └── avatars/                        # Optional child photos
+    └── avatars/                              # Optional child photos
 ```
