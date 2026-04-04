@@ -11,7 +11,7 @@ Morning Hero is a kids' app to help Hannah and Zoe complete their morning jobs w
 
 ## Stack
 
-- **Next.js 15** (App Router, TypeScript, Tailwind CSS) with `output: 'standalone'`
+- **Next.js 16** (App Router, TypeScript, Tailwind CSS) with `output: 'standalone'`
 - **PostgreSQL** on `tjphomepg.postgres.database.azure.com` — databases `morning-hero-prod` and `morning-hero-test`
 - **Hosted** on AKS shire cluster — `prod` and `test` namespaces
 - **Secrets** via Azure Key Vault (`tjp-home-vault`) + ExternalSecret operator

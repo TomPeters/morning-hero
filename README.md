@@ -17,7 +17,7 @@ docker compose up -d
 # Install dependencies
 npm install
 
-# Create .env.local (see .env.local.example or CLAUDE.md for required vars)
+# Create .env.local with DATABASE_URL, SESSION_SECRET, ADMIN_PIN (see CLAUDE.md)
 
 # Start dev server
 npm run dev
@@ -34,7 +34,7 @@ The full CI/CD pipeline is in place:
 
 ## Tech Stack
 
-- Next.js 15 (App Router, TypeScript, Tailwind CSS)
+- Next.js 16 (App Router, TypeScript, Tailwind CSS)
 - PostgreSQL on Azure (`tjphomepg.postgres.database.azure.com`)
 - Deployed on AKS (shire cluster) via ArgoCD GitOps
 - Secrets via Azure Key Vault + ExternalSecret operator
