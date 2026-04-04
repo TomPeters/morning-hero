@@ -60,7 +60,7 @@ export default function ListManagerClient({ lists: initialLists, profiles }: Pro
 
   async function logout() {
     await fetch('/api/admin/logout', { method: 'POST' });
-    router.push('/admin');
+    router.push('/');
     router.refresh();
   }
 

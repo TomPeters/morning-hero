@@ -41,7 +41,7 @@ export default function ProfileSelector() {
   const selectedProfile = PROFILES.find(p => p.childId === selected);
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-4 py-12 gap-10">
+    <main className="relative flex flex-1 flex-col items-center justify-center px-4 py-12 gap-10">
       <h1 className="text-4xl font-bold text-amber-800">Who are you?</h1>
 
       <div className="flex gap-6">
@@ -94,6 +94,13 @@ export default function ProfileSelector() {
           </button>
         </div>
       )}
+
+      <a
+        href="/admin"
+        className="absolute bottom-4 right-4 text-xs text-gray-300 hover:text-gray-400"
+      >
+        Parent area
+      </a>
     </main>
   );
 }

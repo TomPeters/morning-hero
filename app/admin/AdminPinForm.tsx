@@ -22,6 +22,7 @@ export default function AdminPinForm() {
 
     setLoading(false);
     if (res.ok) {
+      router.refresh();
       router.push('/admin/lists');
     } else {
       setError('Wrong PIN, try again');
@@ -53,6 +54,9 @@ export default function AdminPinForm() {
           {loading ? 'Checking...' : 'Enter'}
         </button>
       </form>
+      <a href="/" className="text-gray-400 text-sm hover:underline">
+        ← Back to home
+      </a>
     </main>
   );
 }
