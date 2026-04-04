@@ -46,6 +46,23 @@ DELETE /api/admin/delete-list                  → Delete a list (body: { listId
 
 ---
 
+## Database Setup & Migrations
+
+Schema is managed via a single `schema.sql` file in the repo root. All `CREATE TABLE` statements use `CREATE TABLE IF NOT EXISTS` so the file is safe to run repeatedly.
+
+On startup, `lib/db.ts` runs `schema.sql` against the database automatically. This means the schema is applied on first deploy with no manual steps, and re-running is a no-op.
+
+Schema changes during development are made by editing `schema.sql` directly. For the test database, a full drop-and-recreate is acceptable. For prod, any required `ALTER TABLE` statements are run manually before deploying the new image — these are noted in the commit message when they occur.
+
+A seed function in `lib/db.ts` inserts the default "Morning Routine" list if no rows exist in `job_lists`. This runs after schema initialisation on startup.
+
+```
+schema.sql       # CREATE TABLE IF NOT EXISTS for all tables
+lib/db.ts        # runs schema.sql + seed on startup
+```
+
+---
+
 ## Data Model (PostgreSQL)
 
 Database names: `morning-hero-prod` (prod), `morning-hero-test` (test) on `tjphomepg.postgres.database.azure.com`.
@@ -154,7 +171,7 @@ Both session types are signed with a shared secret (`morning-hero-session-secret
 
 ### Phase 1 — Working checklist, static reward (MVP)
 - Profile selector home screen (Hannah / Zoe tiles)
-- Session picker with one default list ("Morning Routine"); tap to start a session
+- Session picker; tap to start a session
 - Progress indicator ("X of 8 done")
 - "All done!" screen with emoji confetti (static, no AI yet)
 - Daily reset via date-keyed `localStorage` (no DB needed for MVP)
