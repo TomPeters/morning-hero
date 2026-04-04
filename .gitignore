@@ -42,3 +42,7 @@ next-env.d.ts
 
 # local postgres data
 pgdata/
+
+# MCP config (may contain secrets)
+.mcp.json
+.playwright-mcp/
