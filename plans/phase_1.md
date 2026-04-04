@@ -357,7 +357,7 @@ On render:
 1. `getSession()` — if no session or `session.childId !== params.childId` → `redirect('/')`
 2. `getListProgress(listProgressId)` — if not found → `redirect('/[childId]')`
 3. Verify `progress.childId === session.childId` — if not → `redirect('/')`
-4. Verify `progress.date === today()` — if not → `redirect('/[childId]')`
+4. Verify `progress.date` equals today's date (`new Date().toISOString().slice(0, 10)`) — if not → `redirect('/[childId]')`
 5. If `progress.allComplete` → `redirect('/[childId]/[listProgressId]/reward')`
 6. Fetch `job_lists` row for `progress.listId`
 7. Render `<ChecklistClient>` with `{ progress, list }`
@@ -427,23 +427,7 @@ Display:
 
 ---
 
-## Step 9 — Utility: today()
-
-Create `lib/date.ts`:
-
-```ts
-// Returns today's date as YYYY-MM-DD in local time
-export function today(): string {
-  const d = new Date();
-  return d.toISOString().slice(0, 10);
-}
-```
-
-> Note: `toISOString()` returns UTC. If the app is used across midnight, this could show yesterday's date. For a kids' morning routine app this is fine — production runs in the UK, and the app resets at midnight UTC which is 1am BST / midnight GMT.
-
----
-
-## Step 10 — Update app/globals.css
+## Step 9 — Update app/globals.css
 
 Remove all the scaffold-specific CSS (Next.js template styles). Keep the Tailwind base directives. Add:
 
