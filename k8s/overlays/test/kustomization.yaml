@@ -7,4 +7,4 @@ resources:
 - secrets.yaml
 images:
 - name: tjpcontainerregistry.azurecr.io/morning-hero
-  newTag: 2026.04.04.6
+  newTag: 2026.04.04.7
