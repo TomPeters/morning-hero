@@ -575,6 +575,14 @@ This import ensures the module is evaluated (and schema/seed applied) before any
 
 ---
 
+## Implementation Status
+
+**COMPLETE** — all code implemented and pushed to `main` (commit `6f9abe1`). Build passes clean.
+
+Next step: manual smoke-test against the acceptance checklist below using `docker compose up -d && npm run dev`.
+
+---
+
 ## Acceptance Checklist
 
 **Setup**
