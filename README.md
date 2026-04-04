@@ -25,6 +25,11 @@ npm run dev
 
 The app runs at `http://localhost:3000`.
 
+**First-time setup** (fresh database):
+1. Visit `/admin` and enter the PIN from `ADMIN_PIN`
+2. Create at least one job list under Lists
+3. Set passwords for Hannah and Zoe via their profile pages (default is `morning`)
+
 ## Deployment
 
 The full CI/CD pipeline is in place:
