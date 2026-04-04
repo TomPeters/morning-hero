@@ -1,10 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function AdminPinForm() {
-  const router = useRouter();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,8 +20,7 @@ export default function AdminPinForm() {
 
     setLoading(false);
     if (res.ok) {
-      router.refresh();
-      router.push('/admin/lists');
+      window.location.href = '/admin/lists';
     } else {
       setError('Wrong PIN, try again');
       setPin('');
