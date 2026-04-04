@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "canvas-confetti": "^1.9.4",
     "iron-session": "^8.0.4",
     "next": "16.2.2",
     "postgres": "^3.4.8",
@@ -17,6 +19,8 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
