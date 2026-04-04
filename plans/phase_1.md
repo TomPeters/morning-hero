@@ -2,7 +2,7 @@
 
 ## Goal
 
-A fully working kids' checklist app: Hannah and Zoe can log in with their passwords, pick a job list, tick off jobs, and see a reward screen when all jobs are done. No job lists are seeded — an admin creates them via the admin area (Phase 2). The session picker shows an empty state if no lists exist yet.
+A complete, shippable app: the admin creates job lists via a PIN-protected admin area, and Hannah and Zoe can then log in, pick a list, tick off jobs, and see a reward screen when done. Both the kids' flow and the admin area are built together so the app is testable and usable end-to-end.
 
 ---
 
@@ -57,9 +57,29 @@ app/
     reward/
       page.tsx                            (RewardPage — server component)
       RewardReveal.tsx                    (client component with confetti)
+  admin/
+    layout.tsx                            (PIN gate wrapper)
+    page.tsx                              (redirect to /admin/lists)
+    lists/
+      page.tsx                            (ListManagerPage — server component)
+      ListManagerClient.tsx               (client component)
+      [listId]/
+        page.tsx                          (JobEditorPage — server component)
+        JobEditorClient.tsx               (client component)
+    profile/
+      [childId]/
+        page.tsx                          (ProfileEditorPage — server component)
+        ProfileEditorClient.tsx           (client component)
   api/
     auth/login/route.ts                   (POST — password check → set cookie)
     auth/logout/route.ts                  (POST — clear cookie)
+    admin/
+      login/route.ts                      (POST — PIN check → set admin cookie)
+      logout/route.ts                     (POST — clear admin cookie)
+      save-list/route.ts                  (POST — create or rename a list)
+      delete-list/route.ts                (DELETE — delete a list)
+      save-jobs/route.ts                  (POST — save jobs array for a list)
+      save-profile/route.ts               (POST — update name, avatar, password)
     progress/start/route.ts               (POST — create list_progress row)
     progress/[listProgressId]/route.ts    (GET — current session state)
     complete/route.ts                     (POST — mark job complete)
@@ -427,7 +447,92 @@ Display:
 
 ---
 
-## Step 9 — Update app/globals.css
+## Step 9 — Admin Area
+
+### Authentication
+
+`app/admin/layout.tsx` is a server component that wraps all `/admin` routes:
+1. `getSession()` — if `!session.adminAuthed` → render the PIN entry form instead of `{children}`
+2. PIN form submits to `POST /api/admin/login`
+3. On success: `session.adminAuthed = true`, save, redirect to `/admin/lists`
+
+`POST /api/admin/login` body: `{ pin: string }`
+- Compare `pin` against `env.adminPin`
+- On match: set `session.adminAuthed = true`, save, return `{ ok: true }`
+- On mismatch: return 401 `{ error: 'Wrong PIN' }`
+
+`POST /api/admin/logout` — destroy session, redirect to `/admin`
+
+### Admin API routes
+
+All admin routes check `session.adminAuthed` and return 401 if not set.
+
+**POST /api/admin/save-list** — body: `{ listId?: string, name: string, sortOrder: number }`
+- If `listId` is absent: create a new list (generate id with `crypto.randomUUID()`)
+- If `listId` is present: update name and/or sort_order
+- Return `{ listId }`
+
+**DELETE /api/admin/delete-list** — body: `{ listId: string }`
+- Count rows in `job_lists`; if only 1, return 400 `{ error: 'Cannot delete the only list' }`
+- Delete the row; also delete any `list_progress` rows referencing this list
+- Return `{ ok: true }`
+
+**POST /api/admin/save-jobs** — body: `{ listId: string, jobs: Job[] }`
+- Validate each job has `id` and `label`; return 400 if malformed
+- Update `job_lists.jobs` for the given `listId`
+- Return `{ ok: true }`
+
+**POST /api/admin/save-profile** — body: `{ childId: string, name?: string, avatarEmoji?: string, password?: string }`
+- Update whichever fields are provided
+- If `password` is provided: hash with `bcryptjs.hash(password, 10)` and update `password_hash`
+- Return `{ ok: true }`
+
+### app/admin/lists/page.tsx — List Manager (server component)
+
+1. Check `session.adminAuthed` — redirect to `/admin` if not set
+2. `getJobLists()` — fetch all lists
+3. Render `<ListManagerClient lists={lists} />`
+
+### app/admin/lists/ListManagerClient.tsx — client component
+
+Displays all lists as cards showing name and job count. Controls:
+- **Add list** button — inline form: name input, submit calls `POST /api/admin/save-list`, refreshes
+- **Edit** link on each card → navigates to `/admin/lists/[listId]`
+- **Delete** button on each card → confirm dialog, calls `DELETE /api/admin/delete-list`, refreshes; disabled if only one list
+- Drag-to-reorder (or up/down buttons) — on reorder, calls `POST /api/admin/save-list` with updated `sortOrder` for affected rows
+
+### app/admin/lists/[listId]/page.tsx — Job Editor (server component)
+
+1. Check `session.adminAuthed`
+2. Fetch the `job_lists` row for `listId`; 404 if not found
+3. Render `<JobEditorClient list={list} />`
+
+### app/admin/lists/[listId]/JobEditorClient.tsx — client component
+
+Editable job list. Controls:
+- Inline list name editor — on blur/submit calls `POST /api/admin/save-list`
+- Job rows: label input, delete button, drag handle (or up/down buttons) for reordering
+- **Add job** button — appends a new job with a generated id
+- **Save** button — calls `POST /api/admin/save-jobs` with the full jobs array
+- Back link to `/admin/lists`
+
+Keep the job editor simple: no auto-save on every keystroke — one explicit Save button to avoid partial saves.
+
+### app/admin/profile/[childId]/page.tsx — Profile Editor (server component)
+
+1. Check `session.adminAuthed`
+2. `getProfile(childId)`; 404 if not found
+3. Render `<ProfileEditorClient profile={profile} />`
+
+### app/admin/profile/[childId]/ProfileEditorClient.tsx — client component
+
+Fields: name (text), avatar emoji (text/emoji picker), new password (password input with confirmation).
+Submit calls `POST /api/admin/save-profile` with only the changed fields.
+Show success/error feedback inline.
+
+---
+
+## Step 10 — Update app/globals.css
 
 Remove all the scaffold-specific CSS (Next.js template styles). Keep the Tailwind base directives. Add:
 
@@ -466,26 +571,40 @@ This import ensures the module is evaluated (and schema/seed applied) before any
 
 ## What Phase 1 Does NOT Include
 
-- Admin area (Phase 2) — job lists must be created there before kids can use the app
-- Changing passwords or PIN (admin area)
-- Story mode / AI rewards (Phase 3)
+- Story mode / AI rewards (Phase 2)
 
 ---
 
 ## Acceptance Checklist
 
+**Setup**
 - [ ] `docker compose up -d && npm run dev` starts without errors
 - [ ] Schema tables created on first start; re-running is a no-op
-- [ ] Hannah and Zoe profiles seeded on first start
+- [ ] Hannah and Zoe profiles seeded on first start with default password
+
+**Admin area**
+- [ ] `/admin` shows PIN entry form; wrong PIN shows error
+- [ ] Correct PIN sets admin session and redirects to `/admin/lists`
+- [ ] Can create a new list; it appears in the list manager
+- [ ] Can add, reorder, and remove jobs on a list and save them
+- [ ] Can rename a list
+- [ ] Cannot delete the last remaining list
+- [ ] Can change a child's name, avatar, and password via `/admin/profile/[childId]`
+- [ ] Accessing `/admin/lists` without a valid admin session redirects to `/admin`
+
+**Kids' flow**
 - [ ] Home screen shows two profile tiles
 - [ ] Entering wrong password shows error; correct password redirects to session picker
 - [ ] Session picker shows empty state when no lists exist
-- [ ] Session picker shows "Start a list" section once lists have been created via admin
+- [ ] Session picker shows available lists after admin has created one
 - [ ] Tapping a list creates a `list_progress` row and navigates to the checklist
 - [ ] Tapping a job tile marks it complete with visual feedback
 - [ ] Progress bar updates correctly
 - [ ] When all jobs are done, app redirects to the reward page
 - [ ] Reward page shows confetti and personalised message
+
+**Security**
 - [ ] Navigating directly to `/hannah/some-id` while logged in as Zoe redirects to `/`
 - [ ] Navigating to a checklist from a previous day redirects to the session picker
 - [ ] Navigating directly to `/reward` when `all_complete = false` redirects to checklist
+- [ ] `POST /api/complete` with a valid session but wrong child's `listProgressId` returns 403
