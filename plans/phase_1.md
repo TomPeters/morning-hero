@@ -2,7 +2,7 @@
 
 ## Goal
 
-A fully working kids' checklist app: Hannah and Zoe can log in with their passwords, pick a job list, tick off jobs, and see a reward screen when all jobs are done. No admin area yet — the default "Morning Routine" list is seeded by the server at startup.
+A fully working kids' checklist app: Hannah and Zoe can log in with their passwords, pick a job list, tick off jobs, and see a reward screen when all jobs are done. No job lists are seeded — an admin creates them via the admin area (Phase 2). The session picker shows an empty state if no lists exist yet.
 
 ---
 
@@ -124,30 +124,17 @@ export const env = {
 
 ## Step 3 — lib/db.ts
 
-Sets up a single `postgres` client (singleton pattern for Next.js HMR), runs `schema.sql` on startup, and seeds default data.
+Sets up a single `postgres` client (singleton pattern for Next.js HMR), runs `schema.sql` on startup, and seeds the child profiles.
 
 **Singleton pattern**: export a `sql` tag from a module-level variable. In dev, use `global` to avoid creating a new pool on every HMR reload.
 
 **`initDb()`** — called once at module load:
 1. Read and execute `schema.sql` (path: `path.join(process.cwd(), 'schema.sql')`)
-2. Call `seedDb()`
+2. Call `seedProfiles()`
 
-**`seedDb()`**:
-1. Hash passwords for Hannah and Zoe using `bcryptjs.hash(password, 10)` and upsert both profiles (use `INSERT ... ON CONFLICT DO NOTHING`)
-2. Seed default "Morning Routine" list — insert one row into `job_lists` with `id = 'morning-routine'` if no rows exist in `job_lists`
-3. Default jobs array (8 items):
-   ```json
-   [
-     {"id":"1","label":"Eat breakfast"},
-     {"id":"2","label":"Go to the toilet"},
-     {"id":"3","label":"Get dressed"},
-     {"id":"4","label":"Do hair"},
-     {"id":"5","label":"Brush teeth"},
-     {"id":"6","label":"Shoes and socks"},
-     {"id":"7","label":"Put on sunscreen"},
-     {"id":"8","label":"Pack school bag"}
-   ]
-   ```
+**`seedProfiles()`**:
+1. Hash passwords for Hannah and Zoe using `bcryptjs.hash(password, 10)` and insert both profiles with `INSERT ... ON CONFLICT DO NOTHING`
+2. No job lists are seeded — the admin creates them via the admin area
 
 **Query helper functions** (typed, called from API routes and server components):
 
@@ -498,10 +485,9 @@ This import ensures the module is evaluated (and schema/seed applied) before any
 
 ## What Phase 1 Does NOT Include
 
-- Admin area (Phase 3)
+- Admin area (Phase 2) — job lists must be created there before kids can use the app
 - Changing passwords or PIN (admin area)
-- Multiple job lists in the UI (seeded list only — but the schema and API support it)
-- Story mode / AI rewards (Phase 4)
+- Story mode / AI rewards (Phase 3)
 
 ---
 
@@ -509,14 +495,15 @@ This import ensures the module is evaluated (and schema/seed applied) before any
 
 - [ ] `docker compose up -d && npm run dev` starts without errors
 - [ ] Schema tables created on first start; re-running is a no-op
-- [ ] Hannah and Zoe profiles seeded; "Morning Routine" list seeded
+- [ ] Hannah and Zoe profiles seeded on first start
 - [ ] Home screen shows two profile tiles
 - [ ] Entering wrong password shows error; correct password redirects to session picker
-- [ ] Session picker shows "Start a list" section with the Morning Routine card
+- [ ] Session picker shows empty state when no lists exist
+- [ ] Session picker shows "Start a list" section once lists have been created via admin
 - [ ] Tapping a list creates a `list_progress` row and navigates to the checklist
 - [ ] Tapping a job tile marks it complete with visual feedback
 - [ ] Progress bar updates correctly
-- [ ] When all 8 jobs are done, app redirects to the reward page
+- [ ] When all jobs are done, app redirects to the reward page
 - [ ] Reward page shows confetti and personalised message
 - [ ] Navigating directly to `/hannah/some-id` while logged in as Zoe redirects to `/`
 - [ ] Navigating to a checklist from a previous day redirects to the session picker

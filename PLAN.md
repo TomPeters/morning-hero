@@ -54,11 +54,11 @@ On startup, `lib/db.ts` runs `schema.sql` against the database automatically. Th
 
 Schema changes during development are made by editing `schema.sql` directly. For the test database, a full drop-and-recreate is acceptable. For prod, any required `ALTER TABLE` statements are run manually before deploying the new image — these are noted in the commit message when they occur.
 
-A seed function in `lib/db.ts` inserts the default "Morning Routine" list if no rows exist in `job_lists`. This runs after schema initialisation on startup.
+On startup, `lib/db.ts` also seeds the child profiles (Hannah and Zoe) using `INSERT ... ON CONFLICT DO NOTHING`, so they exist on first deploy. No default job lists are seeded — an admin creates lists via the admin area.
 
 ```
 schema.sql       # CREATE TABLE IF NOT EXISTS for all tables
-lib/db.ts        # runs schema.sql + seed on startup
+lib/db.ts        # runs schema.sql + profile seed on startup
 ```
 
 ---
@@ -98,21 +98,6 @@ CREATE TABLE list_progress (
 ```
 
 **Progress tracking**: A row in `list_progress` is created when a child starts a list session. Multiple rows for the same child, list, and date are allowed. In-progress sessions from previous days are not shown to kids — only today's incomplete sessions appear as resumable. Old rows are left indefinitely.
-
----
-
-## Example Configuration
-
-### Example list: "Morning Routine"
-
-1. Eat breakfast
-2. Go to the toilet
-3. Get dressed
-4. Do hair
-5. Brush teeth
-6. Shoes and socks
-7. Put on sunscreen
-8. Pack school bag
 
 ---
 
