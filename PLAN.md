@@ -170,23 +170,20 @@ Both session types are signed with a shared secret (`morning-hero-session-secret
 ## Build Phases
 
 ### Phase 1 — Working checklist, static reward (MVP)
-- Profile selector home screen (Hannah / Zoe tiles)
-- Session picker; tap to start a session
-- Progress indicator ("X of 8 done")
+- Profile selector home screen (Hannah / Zoe tiles) with password auth
+- Session picker: resume today's in-progress sessions or start a new list
+- Checklist with progress indicator ("X of N done")
 - "All done!" screen with emoji confetti (static, no AI yet)
-- Daily reset via date-keyed `localStorage` (no DB needed for MVP)
+- Full DB-backed state (PostgreSQL) and session cookie auth from day one
 
-### Phase 2 — Persistent state
-- Migrate state from `localStorage` to PostgreSQL
-
-### Phase 3 — Parent admin
+### Phase 2 — Parent admin
 - Parent admin area (4-digit PIN gate; PIN stored in Key Vault)
 - Global list manager (create / rename / reorder / delete lists shared across all children)
 - Job editor per list (add / remove / reorder jobs)
 - Profile editor (name, avatar emoji)
 - List selector for kids when multiple lists exist
 
-### Phase 4 — Story mode (future)
+### Phase 3 — Story mode (future)
 - AI-generated story continuation via Claude API
 - One new episode (~150 words) per completed day
 - Builds a running adventure story personalised to each child
